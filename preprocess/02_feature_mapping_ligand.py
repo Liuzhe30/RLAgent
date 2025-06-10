@@ -117,9 +117,9 @@ for round_id in range(1, max_rounds + 1):
         break
 
 # Merge back into original dataframe
-#df_all = df_all.merge(ligand_info_df, on='ligand', how='left')
-#df_all.to_csv(final_merged_with_data,index=False)
-#print(df_all.head())
+df_all = df_all.merge(ligand_info_df, on='ligand', how='left')
+df_all.to_csv(final_merged_with_data,index=False)
+print(df_all.head())
 '''
    Unnamed: 0 pdb_chain                                 region rna_seq ligand  \
 0           0    1am0_A                           H1 (G,G) GAA       G    AMP   
