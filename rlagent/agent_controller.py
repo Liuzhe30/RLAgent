@@ -93,8 +93,8 @@ class AgentController:
         user_input = input("\n[Discrib the model you want] → ").strip()
         output = generate_model(user_input)
         print(output['explain'])
-        device = 'cuda:2'
-        exec('print(device)\n' + output['code'])
+
+        exec(output['code'])
         # Stage 4 - Result reading and visualization
         if output['use_machine_learning']:
             print('done')
