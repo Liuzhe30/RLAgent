@@ -6,7 +6,7 @@ from typing import Optional
 import asyncio
 import json
 
-#我用的deepseek调用
+
 def run_LLM(prompt: str) -> str:
     api_key = ""
     api_url = "http://192.168.0.108:1025/v1/chat/completions"
@@ -40,7 +40,7 @@ def run_LLM(prompt: str) -> str:
         return "system error, please try later."
 
 
-# #保留的deepseek调用
+
 # def run_LLM(full_prompt: str) -> str:
 #     OLLAMA_URL = "http://localhost:11434/api/generate"
 #     payload = {
@@ -64,11 +64,7 @@ client = httpx.AsyncClient(timeout=60.0)
 def answer2json(string):
     start_index = string.find('{')
     end_index = string.rfind('}') + 1
-
-    # 提取有效的 JSON 字符串，包括第一个 '{' 和最后一个 '}'
     json_string = string[start_index:end_index]
-
-    # 将字符串转换为 JSON 对象
     return json.loads(json_string)    
 
 def ask_llm_stage(stage_prompt: str, user_context: str = "") -> str:
