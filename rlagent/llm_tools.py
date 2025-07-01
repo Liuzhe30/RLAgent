@@ -320,9 +320,26 @@ def deep_learning_code_generation(user_input):
 
     User proposed their ideas for their model.
 
-    Please refer to the following code and the user's requirements to generate the code for training the model and explain your code to user.
+    Please select one model from the candidates based on the user's request.
 
-    Example code:"
+    The candidate models are: mamba, self_attention, lstm.
+
+    User requirement:
+    "{user_input}"
+
+    Additionally, you can refer to the introduction of Mamba:
+    Mamba is a novel deep learning method for sequences based on Structured State Space Models (SSM). It efficiently handles long sequences by maintaining constant memory requirements during text generation, leading to training times that scale proportionately with sequence length. Unlike Transformers, which slow down significantly as sequences grow due to their attention mechanisms, Mamba excels in processing very long sequences, making it particularly suitable for tasks requiring this capability.
+
+    Return the content in JSON format, including the following fields:
+
+    - model: model chosed from 'mamba', 'self_attention' and 'lstm'
+    - explain: the text given to user to explain the model
+
+    Please respond with JSON only. Do NOT provide any other explanation or additional text.
+    """
+    answer = answer2json(run_LLM(full_prompt))
+    model = answer['model']
+    answer['code'] = f'''
 import torch
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
@@ -330,11 +347,11 @@ from sklearn.metrics import accuracy_score
 import numpy as np
 import sys
 import warnings
-from models.mamba import mamba_model
+from models.{model} import {model}_model
 
 warnings.filterwarnings("ignore", category=UserWarning, module='torch.nn.modules.loss')
 
-def print_progress_bar(iteration, total, length=40, train_loss=None, train_acc=None, test_acc=None):
+def print_progress_bar(iteration, total, length=40, train_loss=None, train_acc=None, test_acc=None, sys=sys):
     percent = (iteration / total) * 100
     filled_length = int(length * iteration // total)
     bar = '█' * filled_length + '-' * (length - filled_length)
@@ -344,29 +361,29 @@ def print_progress_bar(iteration, total, length=40, train_loss=None, train_acc=N
     if train_loss is not None and train_acc is not None and test_acc is not None:
         progress_info += " | Training Loss: " + str(train_loss)[:6] + " | Training Accuracy: " + str(train_acc)[:6] + " | Test Accuracy: " + str(test_acc)[:6]
     
-    sys.stdout.write(progress_info + "\r")
+    sys.stdout.write(progress_info)
     sys.stdout.flush()
-
 
 device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
 
-
 train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
-
-model = mamba_model(len(data.iloc[0]['rna_feature'][0]), 
+model = {model}_model(len(data.iloc[0]['rna_feature'][0]), 
                  len(data.iloc[0]['ligand_feature'][0]), 
                  len([int(char, 16) for char in data.iloc[0]['fingerprint']]))
+
+print(device)
 model.to(device)
+criterion = nn.MSELoss() 
 
-criterion = nn.MSELoss()
-
+# criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.00006)
+
 
 epochs = 50
 batch_size = 32
 
-def evaluate(model, dataset):
+def evaluate(model, dataset, device, criterion):
 
     model.eval()
     predictions = []
@@ -380,24 +397,27 @@ def evaluate(model, dataset):
             ligand = torch.tensor(row['ligand_feature']).float().to(device)
             fingerprint = torch.tensor([int(char, 16) for char in row['fingerprint']]).float().to(device)
             
+
             output = model(rna, ligand, fingerprint)
             
 
             if isinstance(criterion, nn.CrossEntropyLoss):
                 pred = torch.argmax(output, dim=-1)
-            else: 
+            else:
                 pred = torch.round(output)
             
             predictions.append(pred.cpu().numpy())
             labels.append(row['label'])
 
 
-    return accuracy_score(labels, predictions)
+    return labels, predictions
+
 
 for epoch in range(epochs):
     model.train()
     running_loss = 0.0
     
+
     train_data = train_data.sample(frac=1).reset_index(drop=True)
     
     for idx in range(0, len(train_data), batch_size):
@@ -407,21 +427,17 @@ for epoch in range(epochs):
         
         batch_loss = 0
         for _, row in batch.iterrows():
-
             rna = torch.tensor(row['rna_feature']).to(device)
             ligand = torch.tensor(row['ligand_feature']).float().to(device)
             fingerprint = torch.tensor([int(char, 16) for char in row['fingerprint']]).float().to(device)
             
-
             output = model(rna, ligand, fingerprint)
             
-
             target = torch.tensor(row['label']).float().to(device)
             # target = torch.tensor(row['label']).to(device)
             loss = criterion(output, target)
             batch_loss += loss
         
-
         batch_loss /= len(batch)
         
         batch_loss.backward()
@@ -430,34 +446,17 @@ for epoch in range(epochs):
         running_loss += batch_loss.item()
     
     avg_train_loss = running_loss / (len(train_data) / batch_size)
-    
-    train_acc = evaluate(model, train_data)
-    test_acc = evaluate(model, test_data)
+    label, pred = evaluate(model, train_data, device, criterion)
+    train_acc = accuracy_score(label, pred)
+    label, pred = evaluate(model, test_data, device, criterion)
+    test_acc = accuracy_score(label, pred)
     
 
     print_progress_bar(epoch + 1, epochs, train_loss=avg_train_loss, train_acc=train_acc, test_acc=test_acc)
 
 print('Training finished!')
-    "
-
-    User requirement:
-    "{user_input}"
-
-    Additionally, you can refer to the introduction of Mamba:
-    Mamba is a novel deep learning method for sequences based on Structured State Space Models (SSM). It efficiently handles long sequences by maintaining constant memory requirements during text generation, leading to training times that scale proportionately with sequence length. Unlike Transformers, which slow down significantly as sequences grow due to their attention mechanisms, Mamba excels in processing very long sequences, making it particularly suitable for tasks requiring this capability.
-    
-    The line from models.mamba import mamba_model and model can be replaced with either from models.lstm import lstm_model or from models.self_attention import self_attention_model, while keeping the parameters unchanged.
-    Please be careful of the NameError: name 'device' is not defined.
-    Return the content in JSON format, including the following fields:
-
-    - code: the code to process the column.
-    - explain: the text given to user to explain the model
-
-    Please respond with JSON only. Do NOT provide any other explanation or additional text.
-    """
-    answer = run_LLM(full_prompt)
-    return answer2json(answer)
-
+    '''
+    return answer
 
 def generate_model(user_input):
     """
@@ -486,9 +485,32 @@ def result_code_generation(user_input):
 
     Return the content in JSON format, including the following fields:
     
-    - code: the code to process the column.
+    - code: the code to calculate and print the result.
 
-    Please respond with JSON only. Do NOT provide any other explanation or additional text. Do NOT generate example data for 'result'.
+    In the code, use print to output results to the user, while images should be saved to disk.
+    Please respond with JSON only. Do NOT provide any other explanation or additional text. Do NOT generate example data for 'result'. 
+    """
+    answer = run_LLM(full_prompt)
+    return answer2json(answer)
+
+def result_code_generation_mechine_learning(user_input, code):
+    full_prompt = f"""
+    You are RLAgent, an assistant helping the user with RNA-Ligand modeling.
+
+    The model has been trained. Please refer to the training code below and the user's request to generate the code for computing the test set results.
+
+    Code used in training model:
+    "{code}"
+
+    User requirement:
+    "{user_input}"
+
+    Return the content in JSON format, including the following fields:
+    
+    - code: the code to calculate and print the result.
+
+    In the code, use print to output results to the user, while images should be saved to disk.
+    Please respond with JSON only. Do NOT provide any other explanation or additional text. Do NOT generate example data for 'result'. 
     """
     answer = run_LLM(full_prompt)
     return answer2json(answer)

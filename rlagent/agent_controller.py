@@ -1,7 +1,7 @@
 # rlagent/agent_controller.py
 import torch
 import torch.nn as nn
-from rlagent.llm_tools import ask_llm_stage, judge_user_ready, generate_model, result_code_generation
+from rlagent.llm_tools import ask_llm_stage, judge_user_ready, generate_model, result_code_generation, result_code_generation_mechine_learning
 from rlagent.data_utils import check_and_process_data
 import pandas as pd
 def evaluate_result(model, dataset):
@@ -97,7 +97,12 @@ class AgentController:
         exec(output['code'])
         # Stage 4 - Result reading and visualization
         if output['use_machine_learning']:
-            print('done')
+            while True:
+                user_input = input("\n[Your request, 'exit' to end this stage] → ").strip()
+                if user_input == 'exit':
+                    break
+                result = result_code_generation_mechine_learning(user_input, output['code'])
+                exec(result['code'])
         else:
             labels, predictions, score = evaluate_result(model, test_data)
             ddd = {
