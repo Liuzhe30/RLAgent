@@ -1,5 +1,7 @@
 # RLAgent
-A Strategy-Aware Agent Framework for Adaptive Modeling of RNA-Ligand Interactions
+An Interactive Agent Framework for Adaptive Modeling of RNA Region-Ligand Interactions
+
+<p align="center"><img width="100%" src="images/pipeline.png" /></p>
 
 ## Installation
 
