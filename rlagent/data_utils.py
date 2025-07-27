@@ -1,7 +1,7 @@
 # rlagent/data_utils.py
 
 import pandas as pd
-# from rlagent.llm_tools import feature_recongnization_agent
+from rlagent.llm_tools import init_column_process, judge_user_satisfied, process_absolute_exec, column_process_adjust, Feature_Recognition, Feature_adaption
 import requests
 import torch
 import fm
@@ -14,20 +14,9 @@ from scipy import sparse
 import os
 import json
 from tqdm import tqdm
-import fm
-import torch
-# 1. Load RNA-FM model
-device = 'cuda:2'
-model, alphabet = fm.pretrained.rna_fm_t12()
-batch_converter = alphabet.get_batch_converter()
-model.eval()  # disables dropout for deterministic results
-def process_RNA(sequence):
-    batch_labels, batch_strs, batch_tokens = batch_converter([('whatever', sequence)])
-    batch_tokens = batch_tokens.to(device)
-    model.to(device)
-    with torch.no_grad():
-        results = model(batch_tokens, repr_layers=[12])
-    return results["representations"][12][0].tolist()
+from rlagent.preset_method import process_RNA, get_fingerprint
+
+
 def split_smiles(smiles, kekuleSmiles=True):
     try:
         mol = Chem.MolFromSmiles(smiles)
@@ -50,7 +39,6 @@ def split_smiles(smiles, kekuleSmiles=True):
                 pass
             else:
                 splitted_smiles.append(k)
-
         elif j == len(smiles) - 1:
             if k.islower() and smiles[j - 1].isupper() and k != "c":
                 pass
@@ -107,30 +95,6 @@ def ligand2onehot(ligand, words):
 def str2list(text):
     return json.loads(text)
 
-
-def get_fingerprint(smile):
-    url = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/" + smile + "/JSON"
-    
-    # 发送请求
-    response = requests.get(url)
-    
-    # 检查响应
-    if response.status_code == 200:
-        data = response.json()
-        # print(data)  
-    else:
-        print("Error retrieving data from PubChem. " + smile)
-        return '0'* 230
-    fingerprint = None
-    for compound in data.get("PC_Compounds", []):
-        for prop in compound.get("props", []):
-            if prop.get("urn", {}).get("label") == "Fingerprint":
-                fingerprint = prop.get("value", {}).get("binary")
-                break
-        if fingerprint:
-            break
-    return fingerprint
-
 def hex_to_fixed_length_list(hex_string):
     return [int(char, 16) for char in hex_string]
 
@@ -145,15 +109,15 @@ def concatenate_lists(row):
     return row['coding_1'] + row['coding_2']
 
 
-def check_and_process_data(input_path, output_path, element_use, using_RAG):
+def check_and_process_data(input_path, output_path):
     try:
         data = pd.read_csv(input_path)
 
-        required_columns = {"ligand", "label", "rna_sequence", "region_mask"}
+        # required_columns = {"ligand", "label", "rna_sence", "region_mask"}
 
-        if not required_columns.issubset(data.columns):
-            print(f"Missing required columns! Expected: {required_columns}, Found: {list(data.columns)}")
-            return None
+        # if not required_columns.issubset(data.columns):
+        #     print(f"Missing required columns! Expected: {required_columns}, Found: {list(data.columns)}")
+        #     return None
 
         # Example processing (you can add more if needed)
         # For now, just save the loaded data to processed file
@@ -165,8 +129,6 @@ def check_and_process_data(input_path, output_path, element_use, using_RAG):
         # Add embedding to every ligand
         # if 'RAG' in element_use:
             # add RAG message to every raws
-
-
 
         # Base process
         # data['fingerprint'] = data['ligand'].apply(get_fingerprint)
@@ -180,38 +142,51 @@ def check_and_process_data(input_path, output_path, element_use, using_RAG):
         # data['coding_2'] = data['rna_sequence'].apply(lambda seq: process_rna_sequence(seq, model, batch_converter, device))
         # data['coding'] = data.apply(concatenate_lists, axis=1)
 
-
-
-        # if 'pretrained' in element_use:
-            # add pretrained to every raws
-
-
-
-
         # data.to_csv(output_path, index=False)
 
-        data = pd.read_csv(output_path)
-        data['coding'] = data['coding'].apply(str2list)
+        result = Feature_Recognition(data)
+        finish = False
+        while finish == False:
+            print(result['explain'])
+            print('Sujested feature: ', result['feature'], 'Sujested label: ', '"', result['label'], '"')
+            asking = "\n[Is it reasonable?(tape 'finish' to end)] → "
+            user_input = input(asking).strip()
+            if user_input == 'finish':
+                finish = True
+            else:
+                result = Feature_adaption(data, result, user_input)
+                print(result['explain'])
+        
+        processed_columns = []
+        feature_index = 0
+        for one_feature in result['feature']:
+            while ('feature_' + str(feature_index) in data.columns) or ('feature_' + str(feature_index) in processed_columns):
+                feature_index = feature_index + 1
+            new_feature_name = 'feature_' + str(feature_index)
+            processed_columns.append(new_feature_name)
+            data = column_process(one_feature, data, new_feature_name)
 
-        words = get_dict(data['ligand'].tolist())
-        data['ligand_feature'] = data['ligand'].apply(lambda x: ligand2onehot(x, words))
-        data['rna_feature'] = data['rna_sequence'].apply(process_RNA)
-        data['region_mask'] = data['region_mask'].apply(str2list)
-        for index, row in data.iterrows():
-            # 获取当前行的 region_mask 和 rna_feature
-            mask = [0] + row['region_mask'] + [0]
-            features = row['rna_feature']
+        # data['coding'] = data['coding'].apply(str2list)
 
-            # 将 mask 添加到 features 中
-            for i in range(len(features)):
-                features[i].append(mask[i])
+        # words = get_dict(data['ligand'].tolist())
+        # data['ligand_feature'] = data['ligand'].apply(lambda x: ligand2onehot(x, words))
+        # data['rna_feature'] = data['rna_sequence'].apply(process_RNA)
+        # data['region_mask'] = data['region_mask'].apply(str2list)
+        # for index, row in data.iterrows():
+        #     # 获取当前行的 region_mask 和 rna_feature
+        #     mask = [0] + row['region_mask'] + [0]
+        #     features = row['rna_feature']
 
-            # 更新当前行的 rna_feature
+        #     # 将 mask 添加到 features 中
+        #     for i in range(len(features)):
+        #         features[i].append(mask[i])
 
-            data.at[index, 'rna_feature'] = features
+        #     # 更新当前行的 rna_feature
+
+        #     data.at[index, 'rna_feature'] = features
         print(f"Loaded {len(data)} rows from {input_path}, saved to {output_path}")
         data.to_csv(output_path, index=False)
-        return data
+        return data, result['feature'], result['label']
 
     except Exception as e:
         print(f"Error processing data: {e}")
@@ -225,3 +200,21 @@ def check_and_process_data(input_path, output_path, element_use, using_RAG):
 #         answer = feature_recongnization_agent(user_input_history, column, pd)
 #         user_input_history.append(answer)
 #         user_input = input("\n[Your reply] → ").strip()
+
+
+def column_process(column, data, new_column_name):
+    plan = init_column_process(data[column], new_column_name)
+
+    while True:
+        description = plan['description']
+        code = plan['code']
+        print(description)
+        asking = "\n[Is it reasonable?] → "
+        responce = input(asking).strip()
+        if judge_user_satisfied(responce, asking):
+            data = process_absolute_exec(code, description, new_column_name, data)
+            break
+        else:
+            plan = column_process_adjust(data[column], code, description, new_column_name)
+               
+    return data
