@@ -72,7 +72,7 @@ class AgentController:
         # columns_used = ["ligand", "rna_sequence"]
         # using_RAG = True
 
-        data, feature, label = check_and_process_data("./datasets/train.csv", "./datasets/demo_processed.csv")
+        data, feature, label = check_and_process_data("./datasets/dataset_annotation.csv", "./datasets/demo_processed.csv")
         if data is None:
             print("Data processing failed. Please check your CSV file and try again.")
             return
