@@ -914,7 +914,8 @@ def check_exec(code, query, variation):
     result = query_check(code, query)
     if result['meet']:
         try:
-            exec(code, variation) #check but not exec should be better
+            exec(code, variation.copy())#check but not change the variation if err happend
+            exec(code, variation) 
             variation = {name: obj for name, obj in variation.items() if hasattr(obj, 'shape')}
         except Exception as e:
             print('err________________________')
