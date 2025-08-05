@@ -1036,7 +1036,7 @@ def deeplearning_build(data, features, label):
                 if responce == 'adjust':
                     need_adjust = True
                     break
-                result = return_select({label: data.iloc[0][label]}, va, "use 'combined' as output please")
+                result = return_select({label: data.iloc[0][label]}, va, responce)
                 asking = "\n[Is that reasonable?] → "
                 responce = input(asking).strip()
                 if judge_user_satisfied(responce, asking):
