@@ -1081,7 +1081,7 @@ class sum_model(nn.Module):
         for feature in features:
             va[feature] = torch.from_numpy(sample[feature])
         result = assembly_model(sum_model, code, va)
-        sum_model = result['code']
+        sum_model = assembly_model(sum_model, result['code'], va)
     return sum_model
 
 def check_exec_assembly(code, query, variation, features):
