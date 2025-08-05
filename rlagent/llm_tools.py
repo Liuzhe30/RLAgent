@@ -1040,7 +1040,7 @@ def deeplearning_build(data, features, label):
                 asking = "\n[Is that reasonable?] → "
                 responce = input(asking).strip()
                 if judge_user_satisfied(responce, asking):
-                    return codes, result['code']
+                    break
                 else:
                     print('Your description is not clear enough, or the return value is difficult to process into the same shape as the label. Please describe it again.')
                     print("here are agent's discribtion:")
