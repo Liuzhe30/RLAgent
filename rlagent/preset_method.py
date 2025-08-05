@@ -41,7 +41,7 @@ def get_fingerprint(smile):
                 break
         if fingerprint:
             break
-    fingerprint = [int(fingerprint[i:i+2], 16) for i in range(0, len(fingerprint), 2)]
+    fingerprint = [int(fingerprint[i], 16) for i in range(0, len(fingerprint))]
     return np.array(fingerprint)
 
 def split_smiles(smiles, kekuleSmiles=True):
