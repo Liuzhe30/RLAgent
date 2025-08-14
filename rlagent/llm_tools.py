@@ -914,7 +914,8 @@ def check_exec(code, query, variation):
     result = query_check(code, query)
     if result['meet']:
         try:
-            exec(code, variation) #check but not exec should be better
+            exec(code, variation.copy())#check but not change the variation if err happend
+            exec(code, variation) 
             variation = {name: obj for name, obj in variation.items() if hasattr(obj, 'shape')}
         except Exception as e:
             print('err________________________')
@@ -1036,11 +1037,11 @@ def deeplearning_build(data, features, label):
                 if responce == 'adjust':
                     need_adjust = True
                     break
-                result = return_select({label: data.iloc[0][label]}, va, "use 'combined' as output please")
+                result = return_select({label: data.iloc[0][label]}, va, responce)
                 asking = "\n[Is that reasonable?] → "
                 responce = input(asking).strip()
                 if judge_user_satisfied(responce, asking):
-                    return codes, result['code']
+                    break
                 else:
                     print('Your description is not clear enough, or the return value is difficult to process into the same shape as the label. Please describe it again.')
                     print("here are agent's discribtion:")
@@ -1081,7 +1082,7 @@ class sum_model(nn.Module):
         for feature in features:
             va[feature] = torch.from_numpy(sample[feature])
         result = assembly_model(sum_model, code, va)
-        sum_model = result['code']
+        sum_model = assembly_model(sum_model, result['code'], va)
     return sum_model
 
 def check_exec_assembly(code, query, variation, features):
